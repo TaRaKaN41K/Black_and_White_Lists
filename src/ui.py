@@ -1,5 +1,6 @@
+import re
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, scrolledtext
 
 from backend import ProgramControl
 
@@ -16,6 +17,53 @@ class UI:
         self.var_check_type = None
 
         self.setup_ui()
+
+    def display_table(self, items, status):
+        # Создаем окно для отображения таблицы
+        viewer_window = tk.Toplevel(self.root)
+        viewer_window.title(f"Результаты проверки : {status}")
+
+        # Настраиваем цвет заголовка в зависимости от статуса
+        header_text = "Проверка завершена: ПО Соответствует" if status else "Проверка завершена: ПО Несоответствует"
+        header_color = "green" if status else "red"
+
+        # Создаем статическую метку для заголовка, чтобы он не прокручивался
+        header_label = tk.Label(viewer_window, text=header_text, font=("Helvetica", 16, "bold"), fg=header_color)
+        header_label.pack(pady=(10, 5))  # Верхний отступ для отделения от края окна
+
+        # Создаем текстовый виджет с прокруткой для таблицы
+        text_area = scrolledtext.ScrolledText(viewer_window, wrap=tk.WORD, width=80, height=30)
+        text_area.pack(padx=10, pady=10)
+
+        # Устанавливаем шрифт для таблицы и жирный стиль
+        text_area_font = ("Courier", 12)
+        text_area.tag_configure("bold", font=("Courier", 12, "bold"))
+        text_area.configure(font=text_area_font)
+
+        # Заголовки таблицы
+        table_content = f"{'Программа':<40} | {'Дата':<20}\n" + "-" * 65 + "\n"
+        text_area.insert(tk.END, table_content, "bold")
+
+        # Обрабатываем и отображаем элементы списка
+        for item in items:
+            item = re.sub(r'<br>$', '', item)
+            if item.startswith('<b>') and item.endswith('</b>'):
+                clean_item = item[3:-4]
+                program, date = clean_item.split(" | ")
+                line = f"{program:<40} | {date:<20}\n"
+                text_area.insert(tk.END, line, "bold")
+            else:
+                program, date = item.split(" | ")
+                line = f"{program:<40} | {date:<20}\n"
+                text_area.insert(tk.END, line)
+            table_content += line
+
+        # Делаем текстовое поле только для чтения
+        text_area.configure(state='disabled')
+
+        # Запись итогового содержимого таблицы в файл
+        with open("data/result_table.txt", "w", encoding="utf-8") as file:
+            file.write(table_content)
 
     def setup_ui(self):
         label_file = tk.Label(self.frame, text="Файл со списком программ:")
@@ -60,8 +108,6 @@ class UI:
         file_path = self.entry_file.get()
         check_type = self.var_check_type.get()
 
-        print(check_type)
-
         if not file_path:
             messagebox.showerror("Ошибка", "Пожалуйста, выберите файл.")
             return
@@ -71,9 +117,12 @@ class UI:
 
         control = ProgramControl()
         results, status = control.check_program(
-            prefetch_dir_path='/Users/feodorkalasov/PTStart/INT-3/Prefetch',
             check_type=check_type,
             file_path=file_path
         )
-        print(results)
-        messagebox.showinfo("Результат проверки", f"Статус проверки: {status}")
+
+        result_table = control.create_result_table(results)
+
+        self.display_table(result_table, status)
+
+
